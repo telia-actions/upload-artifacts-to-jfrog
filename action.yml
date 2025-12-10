@@ -1,0 +1,91 @@
+name: 'Deploy artifacts to IIS using WebDeploy'
+description: 'Upload artifacts from some local directory in self-hosted runner to given repository in JFrog. Uses Powershell.'
+inputs:
+  jfrog-repo-url:
+    description: 'Url of JFrog repository to upload to'
+    required: true
+  jfrog-username:
+    description: 'JFrog username to use for uploading artifact. Should have WRITE permissions.'
+    required: true
+  jfrog-password:
+    description: 'JFrog user password'
+    required: false
+  local-storage-path:
+    description: 'Path of local (usually self-hosted) runner''s directory where artifacts are stored.'
+    required: true
+  days-limit-for-uploaded-artifacts:
+    description: 'Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted'
+    required: true
+    default: 30
+runs:
+  using: "composite"
+  steps:
+    - name: Upload artifacts
+      shell: powershell
+      run: |
+        
+        function WriteLog {
+          param (
+            $Text
+          )
+          
+          Write-Host "$(Get-Date -Format o): " -NoNewline -BackgroundColor DarkMagenta -ForegroundColor Yellow
+          Write-Host $Text -BackgroundColor DarkMagenta -ForegroundColor Gray
+        }
+        
+        $uploadedPrefix = "Uploaded-"
+        
+        WriteLog("Searching for pending artifact directories in '${{ inputs.local-storage-path }}'")
+        
+        $artifacts = Get-ChildItem "${{ inputs.local-storage-path }}" -Directory -Exclude "$uploadedPrefix*"
+        
+        if ($artifacts.count -gt 0) {
+          WriteLog("Found $($artifacts.count) pending artifact directories")
+          
+          foreach ($dir in $artifacts) {
+            try {
+            
+              WriteLog("Archiving artifact '$($dir.Name)'")
+              Compress-Archive -Path "$dir/*" -DestinationPath "$dir.zip" -Force
+              
+              WriteLog("Uploading artifact '$($dir.Name).zip' to JFrog")
+              $authHeaderValue = "Basic " + [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${{ inputs.jfrog-username }}:${{ inputs.jfrog-password }}"))
+              
+              Invoke-WebRequest `
+                -Method Put `
+                -Uri "${{ inputs.jfrog-repo-url }}$($dir.Name).zip" `
+                -Headers @{ "Authorization" = $authHeaderValue } `
+                -InFile "$dir.zip" `
+                -UseBasicParsing
+              
+              WriteLog("Adding prefix to uploaded directory")
+              Rename-Item -Path $dir.FullName -NewName ($uploadedPrefix + $dir.Name)
+              
+            } catch {
+              WriteLog("Failed to upload artifact '$($dir.Name)': $_")
+            }
+            
+          }
+          
+        } else {
+          WriteLog("No pending artifact directories found")
+        }
+        
+        $zipFiles = Get-ChildItem "${{ inputs.local-storage-path }}/*" -File -Include "*.zip"
+        if ($zipFiles.count -gt 0) {
+          WriteLog("Deleting $($zipFiles.count) archived artifact(s)")
+          $zipFiles | Remove-Item
+        } else {
+          WriteLog("No archived artifacts found to delete")
+        }
+        
+        $outdatedDirectories = Get-ChildItem "${{ inputs.local-storage-path }}" -Directory -Filter $uploadedPrefix | ? { $_.LastWriteTime -lt (Get-Data).AddDays("-${{ inputs.days-limit-for-uploaded-artifacts }}") }
+        if ($outdatedDirectories.count -gt 0) {
+          WriteLog("Deleting $($outdatedDirectories.count) old uploaded directories")
+          $outdatedDirectories | Remove-Item
+        } else {
+          WriteLog("No outdated directories found to delete")
+        }
+        
+        WriteLog("Finished.")
+
