@@ -42,6 +42,8 @@ runs:
         if ($artifacts.count -gt 0) {
           WriteLog("Found $($artifacts.count) pending artifact directories")
           
+          $jfrogRepoUrl = "${{ inputs.jfrog-repo-url }}".TrimEnd('/') + '/' # making sure the trailing slash is in place
+          
           foreach ($dir in $artifacts) {
             try {
             
@@ -51,12 +53,19 @@ runs:
               WriteLog("Uploading artifact '$($dir.Name).zip' to JFrog")
               $authHeaderValue = "Basic " + [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${{ inputs.jfrog-username }}:${{ inputs.jfrog-password }}"))
               
-              Invoke-WebRequest `
+              $url = "$jfrogRepoUrl" + "$($dir.Name).zip"
+              
+              $response = Invoke-WebRequest `
                 -Method Put `
-                -Uri "${{ inputs.jfrog-repo-url }}$($dir.Name).zip" `
+                -Uri "$url" `
                 -Headers @{ "Authorization" = $authHeaderValue } `
                 -InFile "$dir.zip" `
                 -UseBasicParsing
+              
+              if ($response.StatusCode -ne 201) {
+                WriteLog("Unexpected response StatusCode returned, terminating.")
+                throw "Unexpected response StatusCode returned, terminating."
+              }
               
               WriteLog("Adding prefix to uploaded directory")
               Rename-Item -Path $dir.FullName -NewName ($uploadedPrefix + $dir.Name)
