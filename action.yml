@@ -88,10 +88,26 @@ runs:
           WriteLog("No archived artifacts found to delete")
         }
         
-        $outdatedDirectories = Get-ChildItem "${{ inputs.local-storage-path }}" -Directory -Filter $uploadedPrefix | ? { $_.LastWriteTime -lt (Get-Data).AddDays("-${{ inputs.days-limit-for-uploaded-artifacts }}") }
+        $outdatedDirectories = Get-ChildItem "${{ inputs.local-storage-path }}" -Directory -Filter "$uploadedPrefix*" | ? { $_.LastWriteTime -lt (Get-Date).AddDays("-${{ inputs.days-limit-for-uploaded-artifacts }}") } | Select-Object -ExpandProperty FullName
         if ($outdatedDirectories.count -gt 0) {
           WriteLog("Deleting $($outdatedDirectories.count) old uploaded directories")
-          $outdatedDirectories | Remove-Item
+          $outdatedDirectories |
+            ForEach-Object {
+                $path = $_
+                if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path -PathType Container)) {
+                    try {
+                        Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+                        Write-Host "[OK] Removed: $path"
+                    }
+                    catch {
+                        # Prints the error to console but does NOT stop the script
+                        Write-Warning "[ERR] Failed to remove: $path - $($_.Exception.Message)"
+                    }
+                }
+                else {
+                    Write-Host "[SKIP] Not found or not a directory: $path"
+                }
+            }
         } else {
           WriteLog("No outdated directories found to delete")
         }
