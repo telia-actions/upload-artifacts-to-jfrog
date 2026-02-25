@@ -16,7 +16,7 @@ Url of JFrog repository to upload to. **Required**
 ### local-storage-path:
   Path of local (usually self-hosted) runner's directory where artifacts are stored. **Required**
 ###days-limit-for-uploaded-artifacts:
-    Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted. Default is 30 days.
+    Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted. Default is 15 days.
 
 
 ## Example

@@ -16,7 +16,7 @@ inputs:
   days-limit-for-uploaded-artifacts:
     description: 'Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted'
     required: true
-    default: 30
+    default: 15
 runs:
   using: "composite"
   steps:
