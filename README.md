@@ -10,13 +10,13 @@ The workflow using this action could be triggered on some scheduled time.
 ### jfrog-repo-url:
 Url of JFrog repository to upload to. **Required**
 ### jfrog-username:
-  JFrog username to use for uploading artifact. Should have WRITE permissions. **Required**
+  Deprecated. JFrog username to use for uploading artifact. Should have WRITE permissions. Should be omitted if JFrog OIDC with GitHub is set.
 ### jfrog-password:
-  JFrog user password.
+  Deprecated. JFrog user password. Should be omitted if JFrog OIDC with GitHub is set.
 ### local-storage-path:
   Path of local (usually self-hosted) runner's directory where artifacts are stored. **Required**
 ###days-limit-for-uploaded-artifacts:
-    Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted. Default is 15 days.
+    Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted. Default is 7 days.
 
 
 ## Example
@@ -37,8 +37,6 @@ Url of JFrog repository to upload to. **Required**
           - uses: telia-actions/upload-artifacts-to-jfrog@v1
             with:
               jfrog-repo-url: ${{ vars.JFROG_REPO_URL }}
-              jfrog-username: ${{ vars.JFROG_USERNAME }}
-              jfrog-password: ${{ secrets.JFROG_PASSWORD }}
               local-storage-path: 'D:/local-artifacts/some-application'
 
 ```

@@ -5,10 +5,10 @@ inputs:
     description: 'Url of JFrog repository to upload to'
     required: true
   jfrog-username:
-    description: 'JFrog username to use for uploading artifact. Should have WRITE permissions.'
-    required: true
+    description: 'Deprecated. JFrog username to use for uploading artifact. Should have WRITE permissions. Should be omitted if JFrog OIDC with GitHub is set.'
+    required: false
   jfrog-password:
-    description: 'JFrog user password'
+    description: 'Deprecated. JFrog user password. Should be omitted if JFrog OIDC with GitHub is set.'
     required: false
   local-storage-path:
     description: 'Path of local (usually self-hosted) runner''s directory where artifacts are stored.'
@@ -16,10 +16,21 @@ inputs:
   days-limit-for-uploaded-artifacts:
     description: 'Limit of days to keep files in the given local storage path. Older uploaded repositories will be deleted'
     required: true
-    default: 15
+    default: 7
+
 runs:
   using: "composite"
   steps:
+    - name: Setup JFrog CLI
+      if: inputs.jfrog-username == '' && inputs.jfrog-password == ''
+      uses: jfrog/setup-jfrog-cli@v4
+      id: jfrog_oidc
+      env:  
+        JF_URL: https://jfrog.teliacompany.io
+      with:
+        oidc-provider-name: github-cloud
+        oidc-audience: github-cloud
+
     - name: Upload artifacts
       shell: powershell
       run: |
@@ -51,7 +62,7 @@ runs:
               Compress-Archive -Path "$dir/*" -DestinationPath "$dir.zip" -Force
               
               WriteLog("Uploading artifact '$($dir.Name).zip' to JFrog")
-              $authHeaderValue = "Basic " + [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${{ inputs.jfrog-username }}:${{ inputs.jfrog-password }}"))
+              $authHeaderValue = "Basic " + [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${{ inputs.jfrog-username || steps.jfrog_oidc.outputs.oidc-user }}:${{ inputs.jfrog-password || steps.jfrog_oidc.outputs.oidc-token }}"))
               
               $url = "$jfrogRepoUrl" + "$($dir.Name).zip"
               
